@@ -1,0 +1,160 @@
+---
+title: "Practical Machine Learning Course Project: Prediction Assignment"
+author: "Yaniela Fernandez M."
+date: "9/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+This report create a model to predict the manner in which 6 participants performed some exercise using the accelerometer data as predictors.The outcome to be predicted is the “classe” variable in the training data set. The machine learning algorithm described here is applied to the 20 test cases available in the test data and the predictions are submitted in appropriate format according to the Course Project Prediction Quiz for automated grading.
+
+
+## Dataset description
+
+The dataset has 19642 observations of 160 variables. The data was collect from devices that quantified self movement from 6 participants, that were asked to perform one set of 10 repetitions of barbell lifts correctly and incorrectly in 5 different ways. 
+
+The outcome variable is classe, a factor variable with 5 levels: A, B, C, D, E. 
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Initial configuration
+
+The initial configuration consists of loading some required packages
+
+```{r ,  results='hide' , message=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library (lattice)
+library(ggplot2)
+library(dplyr)
+
+```
+
+
+## Downloading and cleaning data
+
+In this section the data is downloaded and processed. Some basic transformations and cleanup will be performed, so that NA values are omitted. Constant and almost constant predictors across samples (called zero and near-zero variance predictors), that is not only non-informative, it can break some models, are omitted too. Irrelevant columns such as user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window, and num_window (columns 1 to 6) will be removed in train set.
+
+The **pml-training.csv** data is used to devise training and testing sets. The **pml-test.csv** data is used to predict and answer the 20 questions based on the trained model.
+
+
+```{r }
+
+#data download
+urlTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlTest  <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(urlTrain, destfile = "train.csv")
+download.file(urlTest, destfile = "test.csv")
+
+train <- read.csv("train.csv", na.strings=c("NA","#DIV/0!", ""))
+test <- read.csv("test.csv", na.strings=c("NA","#DIV/0!", ""))
+
+#clean training data
+train<-train[,colSums(is.na(train)) == 0]
+
+#near-zero variance predictors removed
+x = nearZeroVar(train)
+train<-train[,-x]
+
+#Irrelevant columns omitted
+train<-train[,-c(1:6)]
+
+
+```
+
+The models will be fit using only the folowing 53 variables:
+
+```{r echo=FALSE }
+names(train)
+```
+
+### Data partitioning
+
+In this section is splitting the train data set in training (75%) and testing (25%) data.
+
+```{r }
+inTrain <- createDataPartition(y=train$classe, p=0.75, list=FALSE)
+training <- train[inTrain, ] 
+testing <- train[-inTrain, ]
+
+```
+
+
+### Exploratory analysis
+
+The variable **classe** contains 5 levels. The plot of the outcome variable shows the frequency of each levels in the training data. It is shows that Level A is the most frequent **classe**. D appears to be the least frequent one.
+
+```{r echo=FALSE , fig.align='center', fig.height = 3, fig.width = 6, fig.cap="**Frecuency of classe levels**"}
+table(training$classe) %>% barplot(col = "wheat")
+```
+
+## Models building
+
+Three different model algorithms were building, with a cross-validation of k=3 k-folds. The three model types are:
+
+* Decision trees with CART (rpart)
+* Stochastic gradient boosting trees (gbm)
+* Random forest decision trees (rf)
+
+The code to fit those models are:
+
+```{r results='hide' }
+#cross validation
+fitControl<-trainControl(method='cv', number = 3)
+
+#rpart model 
+cart <- train(classe ~ .,  data=training,  trControl=fitControl,  method='rpart')
+predCART <- predict(cart, newdata=testing)
+cmCART <- confusionMatrix(table(predCART, testing$classe))
+
+#gbm model
+gbm <- train( classe ~ ., data=training, trControl=fitControl,  method='gbm')
+predGBM <- predict(gbm, newdata=testing)
+cmGBM <- confusionMatrix(table(predGBM, testing$classe))
+
+#rf model
+rf <- train(classe ~ ., data=training, trControl=fitControl,  method='rf',  ntree=100)
+predRF <- predict(rf, newdata=testing)
+cmRF <- confusionMatrix(table(predRF, testing$classe))
+
+```
+
+### Out-of-sample results
+
+The expected out-of-sample error is calculated as the fraction of correct samples in the prediction model. This information is provided by the confusion matrix. 
+
+```{r echo=FALSE }
+
+AccuracyResults <- data.frame(
+  Model = c('CART', 'GBM', 'RF'),
+  Accuracy = rbind(cmCART$overall[1], cmGBM$overall[1], cmRF$overall[1])
+)
+print(AccuracyResults)
+```
+
+Based on an assessment of the model fits and out-of-sample results, it looks like both gradient boosting and random forests outperform the CART model, with random forests being slightly more accurate. 
+
+## Prediction with validation test
+
+The best model (random forest) will be applied to predict the 20 quiz results (test dataset) as shown below.
+
+```{r }
+prediction <- predict(rf, newdata=test)
+prediction
+```
+
+
+
+
+
