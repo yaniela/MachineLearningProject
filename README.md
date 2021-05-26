@@ -1,1 +1,2 @@
 # MachineLearningProject
+This report create a model to predict the manner in which 6 participants performed some exercise using the accelerometer data as predictors.The outcome to be predicted is the “classe” variable in the training data set. The machine learning algorithm described here is applied to the 20 test cases available in the test data and the predictions are submitted in appropriate format according to the Course Project Prediction Quiz for automated grading.
